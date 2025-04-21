@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual Try-On</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <script src="https://unpkg.com/ml5@0.12.2/dist/ml5.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            position: relative;
+            width: 640px;
+            height: 480px;
+            margin: 20px 0;
+            background-color: #ddd;
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+        #videoElement {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 8px;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        #overlayImage {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            pointer-events: none;
+            z-index: 2;
+            transform-origin: center center;
+        }
+        #poseCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 3;
+            pointer-events: none;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            z-index: 4;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #imageInput {
+            display: none;
+        }
+        #statusMessage {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+            background-color: #f8f9fa;
+            color: #333;
+            z-index: 4;
+        }
+        .error {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+        .success {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
+    </style>
+</head>
+<body>
+    <h1>Virtual Try-On</h1>
+    <div class="container">
+        <video id="videoElement" autoplay playsinline></video>
+        <img id="overlayImage" src="" alt="Overlay">
+        <canvas id="poseCanvas"></canvas>
+        <div id="statusMessage">Click "Start Camera" to begin</div>
+    </div>
+    <div class="controls">
+        <button id="startCameraBtn" onclick="startCamera()">Start Camera</button>
+        <button id="selectImageBtn" onclick="document.getElementById('imageInput').click()" disabled>Select Clothing Image</button>
+        <input type="file" id="imageInput" accept="image/jpeg,image/png" onchange="handleImageSelect(event)">
+    </div>
+
+    <script>
+        let videoElement = document.getElementById('videoElement');
+        let overlayImage = document.getElementById('overlayImage');
+        let poseCanvas = document.getElementById('poseCanvas');
+        let poseCtx = poseCanvas.getContext('2d');
+        let statusMessage = document.getElementById('statusMessage');
+        let stream = null;
+        let poseNet = null;
+        let poses = [];
+        let selectedImage = null;
+        let isTracking = false;
+
+        function updateStatus(message, isError = false) {
+            statusMessage.textContent = message;
+            statusMessage.className = isError ? 'error' : 'success';
+            console.log('Status Update:', message);
+        }
+
+        function drawKeypoints() {
+            console.log('Drawing keypoints...');
+            console.log('Current canvas dimensions:', {
+                width: poseCanvas.width,
+                height: poseCanvas.height
+            });
+            
+            poseCtx.clearRect(0, 0, poseCanvas.width, poseCanvas.height);
+            
+            if (poses.length > 0) {
+                console.log('Poses found:', poses.length);
+                const pose = poses[0].pose;
+                const keypoints = pose.keypoints;
+                console.log('Keypoints to draw:', JSON.stringify(keypoints, null, 2));
+
+                // Draw keypoints
+                keypoints.forEach(keypoint => {
+                    if (keypoint.score > 0.5) {
+                        const x = keypoint.position.x;
+                        const y = keypoint.position.y;
+                        console.log(`Drawing keypoint ${keypoint.part}:`, {
+                            position: { x, y },
+                            score: keypoint.score
+                        });
+                        
+                        poseCtx.beginPath();
+                        poseCtx.arc(x, y, 5, 0, 2 * Math.PI);
+                        poseCtx.fillStyle = 'red';
+                        poseCtx.fill();
+                    }
+                });
+
+                // Draw skeleton
+                const skeleton = [
+                    ['leftShoulder', 'rightShoulder'],
+                    ['leftShoulder', 'leftHip'],
+                    ['rightShoulder', 'rightHip'],
+                    ['leftHip', 'rightHip']
+                ];
+
+                skeleton.forEach(pair => {
+                    const part1 = keypoints.find(k => k.part === pair[0]);
+                    const part2 = keypoints.find(k => k.part === pair[1]);
+                    
+                    if (part1 && part2 && part1.score > 0.5 && part2.score > 0.5) {
+                        const x1 = part1.position.x;
+                        const y1 = part1.position.y;
+                        const x2 = part2.position.x;
+                        const y2 = part2.position.y;
+                        
+                        console.log(`Drawing skeleton line between ${pair[0]} and ${pair[1]}:`, {
+                            part1: { x: x1, y: y1 },
+                            part2: { x: x2, y: y2 }
+                        });
+                        
+                        poseCtx.beginPath();
+                        poseCtx.moveTo(x1, y1);
+                        poseCtx.lineTo(x2, x2);
+                        poseCtx.strokeStyle = 'green';
+                        poseCtx.lineWidth = 2;
+                        poseCtx.stroke();
+                    }
+                });
+            } else {
+                console.log('No poses to draw');
+            }
+        }
+
+        async function startCamera() {
+            console.log('Starting camera initialization...');
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                console.log('Available devices:', devices);
+                const hasCamera = devices.some(device => device.kind === 'videoinput');
+                
+                if (!hasCamera) {
+                    updateStatus("No camera found on your device", true);
+                    return;
+                }
+
+                console.log('Requesting camera access...');
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: {
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        facingMode: "user"
+                    } 
+                });
+                
+                console.log('Camera access granted, setting up video element...');
+                videoElement.srcObject = stream;
+                videoElement.style.display = 'block';
+                
+                // Wait for video to be ready
+                await new Promise((resolve) => {
+                    videoElement.onloadedmetadata = () => {
+                        console.log('Video metadata loaded');
+                        console.log('Video dimensions:', {
+                            width: videoElement.videoWidth,
+                            height: videoElement.videoHeight
+                        });
+                        resolve();
+                    };
+                });
+
+                // Set canvas size to match video dimensions
+                console.log('Setting up canvas...');
+                poseCanvas.width = videoElement.videoWidth;
+                poseCanvas.height = videoElement.videoHeight;
+                poseCanvas.style.display = 'block';
+                
+                console.log('Canvas dimensions:', {
+                    width: poseCanvas.width,
+                    height: poseCanvas.height
+                });
+                
+                updateStatus("Camera started successfully");
+                
+                try {
+                    console.log('Initializing PoseNet...');
+                    
+                    // Create a new video element for PoseNet
+                    const poseNetVideo = document.createElement('video');
+                    poseNetVideo.width = videoElement.videoWidth;
+                    poseNetVideo.height = videoElement.videoHeight;
+                    poseNetVideo.autoplay = true;
+                    poseNetVideo.playsinline = true;
+                    poseNetVideo.srcObject = stream;
+                    
+                    // Wait for the video to be ready
+                    await new Promise((resolve) => {
+                        poseNetVideo.onloadedmetadata = () => {
+                            console.log('PoseNet video ready');
+                            resolve();
+                        };
+                    });
+                    
+                    poseNet = ml5.poseNet(poseNetVideo, {
+                        architecture: 'MobileNetV1',
+                        imageScaleFactor: 0.3,
+                        outputStride: 16,
+                        flipHorizontal: false,
+                        minConfidence: 0.5
+                    }, function() {
+                        console.log('PoseNet model loaded successfully');
+                        updateStatus("Pose detection ready");
+                        document.getElementById('selectImageBtn').disabled = false;
+                        document.getElementById('startCameraBtn').disabled = true;
+                        isTracking = true;
+                        console.log('Starting overlay tracking...');
+                        requestAnimationFrame(updateOverlay);
+                    });
+                    
+                    console.log('Setting up pose detection callback...');
+                    poseNet.on('pose', function(results) {
+                        console.log('Raw pose detection results:', JSON.stringify(results, null, 2));
+                        
+                        if (results.length > 0) {
+                            const rawPose = results[0].pose;
+                            console.log('Raw pose data:', {
+                                score: rawPose.score,
+                                keypoints: rawPose.keypoints.map(k => ({
+                                    part: k.part,
+                                    score: k.score,
+                                    position: k.position
+                                }))
+                            });
+                            
+                            poses = results;
+                        } else {
+                            poses = [];
+                        }
+                        drawKeypoints();
+                    });
+                    
+                } catch (poseError) {
+                    console.error("Error initializing PoseNet:", poseError);
+                    updateStatus("Error initializing pose detection", true);
+                }
+            } catch (err) {
+                console.error("Error accessing camera:", err);
+                if (err.name === 'NotAllowedError') {
+                    updateStatus("Please allow camera access in your browser settings", true);
+                } else if (err.name === 'NotFoundError') {
+                    updateStatus("No camera found on your device", true);
+                } else {
+                    updateStatus("Error accessing camera: " + err.message, true);
+                }
+            }
+        }
+
+        function handleImageSelect(event) {
+            console.log('Image selection started...');
+            const file = event.target.files[0];
+            if (file) {
+                console.log('File selected:', file.name);
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    console.log('Image loaded, setting up overlay...');
+                    overlayImage.src = e.target.result;
+                    overlayImage.style.display = 'block';
+                    selectedImage = overlayImage;
+                    console.log('Overlay image properties:', {
+                        src: overlayImage.src,
+                        display: overlayImage.style.display,
+                        width: overlayImage.width,
+                        height: overlayImage.height
+                    });
+                    updateStatus("Image loaded successfully");
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function updateOverlay() {
+            if (!isTracking) {
+                console.log('Tracking not active');
+                requestAnimationFrame(updateOverlay);
+                return;
+            }
+            if (!selectedImage) {
+                console.log('No image selected');
+                requestAnimationFrame(updateOverlay);
+                return;
+            }
+            if (poses.length === 0) {
+                console.log('No poses detected');
+                requestAnimationFrame(updateOverlay);
+                return;
+            }
+
+            const pose = poses[0].pose;
+            const keypoints = pose.keypoints;
+            console.log('Processing pose with', keypoints.length, 'keypoints');
+
+            const leftShoulder = keypoints.find(k => k.part === 'leftShoulder');
+            const rightShoulder = keypoints.find(k => k.part === 'rightShoulder');
+            const leftHip = keypoints.find(k => k.part === 'leftHip');
+
+            console.log('Keypoints found:', {
+                leftShoulder: leftShoulder ? leftShoulder.position : null,
+                rightShoulder: rightShoulder ? rightShoulder.position : null,
+                leftHip: leftHip ? leftHip.position : null
+            });
+
+            if (leftShoulder && rightShoulder && leftHip) {
+                const centerX = (leftShoulder.position.x + rightShoulder.position.x) / 2;
+                const centerY = (leftShoulder.position.y + leftHip.position.y) / 2;
+                const width = Math.abs(rightShoulder.position.x - leftShoulder.position.x) * 1.5;
+                const height = Math.abs(leftHip.position.y - leftShoulder.position.y) * 1.2;
+
+                console.log('Calculated overlay position:', {
+                    centerX,
+                    centerY,
+                    width,
+                    height
+                });
+
+                overlayImage.style.position = 'absolute';
+                overlayImage.style.left = centerX + 'px';
+                overlayImage.style.top = centerY + 'px';
+                overlayImage.style.width = width + 'px';
+                overlayImage.style.height = height + 'px';
+                overlayImage.style.transform = 'translate(-50%, -50%)';
+                overlayImage.style.zIndex = '2';
+
+                console.log('Updated overlay styles:', {
+                    position: overlayImage.style.position,
+                    left: overlayImage.style.left,
+                    top: overlayImage.style.top,
+                    width: overlayImage.style.width,
+                    height: overlayImage.style.height,
+                    transform: overlayImage.style.transform,
+                    zIndex: overlayImage.style.zIndex
+                });
+            }
+
+            requestAnimationFrame(updateOverlay);
+        }
+    </script>
+</body>
+</html> 
