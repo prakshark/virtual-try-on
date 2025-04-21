@@ -84,11 +84,13 @@
         }
         #statusMessage {
             margin: 10px 0;
-            padding: 10px;
+            padding: 10px 20px;
             border-radius: 4px;
             background-color: #f8f9fa;
             color: #333;
-            z-index: 4;
+            font-size: 16px;
+            text-align: center;
+            min-width: 300px;
         }
         .error {
             background-color: #ffebee;
@@ -102,11 +104,11 @@
 </head>
 <body>
     <h1>Virtual Try-On</h1>
+    <div id="statusMessage">Click "Start Camera" to begin</div>
     <div class="container">
         <video id="videoElement" autoplay playsinline></video>
         <img id="overlayImage" src="" alt="Overlay">
         <canvas id="poseCanvas"></canvas>
-        <div id="statusMessage">Click "Start Camera" to begin</div>
     </div>
     <div class="controls">
         <button id="startCameraBtn" onclick="startCamera()">Start Camera</button>
