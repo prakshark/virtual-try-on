@@ -15,6 +15,11 @@
             padding: 20px;
             background-color: #f0f0f0;
         }
+        .main-container {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
         .container {
             position: relative;
             width: 640px;
@@ -26,6 +31,30 @@
             justify-content: center;
             align-items: center;
             overflow: hidden;
+        }
+        .dress-options {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            padding: 15px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .dress-option {
+            width: 150px;
+            height: 150px;
+            border: 3px solid transparent;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: border-color 0.3s ease;
+            object-fit: cover;
+        }
+        .dress-option:hover {
+            border-color: #4CAF50;
+        }
+        .dress-option.selected {
+            border-color: #2196F3;
         }
         #videoElement {
             width: 100%;
@@ -105,15 +134,20 @@
 <body>
     <h1>Virtual Try-On</h1>
     <div id="statusMessage">Click "Start Camera" to begin</div>
-    <div class="container">
-        <video id="videoElement" autoplay playsinline></video>
-        <img id="overlayImage" src="" alt="Overlay">
-        <canvas id="poseCanvas"></canvas>
+    <div class="main-container">
+        <div class="container">
+            <video id="videoElement" autoplay playsinline></video>
+            <img id="overlayImage" src="" alt="Overlay" style="display: none;">
+            <canvas id="poseCanvas"></canvas>
+        </div>
+        <div class="dress-options">
+            <img src="./IMG1.png" alt="Dress 1" class="dress-option" onclick="selectDress(this)" onerror="handleImageError(this)">
+            <img src="./IMG2.png" alt="Dress 2" class="dress-option" onclick="selectDress(this)" onerror="handleImageError(this)">
+            <img src="./IMG3.png" alt="Dress 3" class="dress-option" onclick="selectDress(this)" onerror="handleImageError(this)">
+        </div>
     </div>
     <div class="controls">
         <button id="startCameraBtn" onclick="startCamera()">Start Camera</button>
-        <button id="selectImageBtn" onclick="document.getElementById('imageInput').click()" disabled>Select Clothing Image</button>
-        <input type="file" id="imageInput" accept="image/jpeg,image/png" onchange="handleImageSelect(event)">
     </div>
 
     <script>
@@ -127,6 +161,50 @@
         let poses = [];
         let selectedImage = null;
         let isTracking = false;
+
+        function handleImageError(img) {
+            console.error('Error loading image:', img.src);
+            img.style.display = 'none';
+            updateStatus(`Error loading image: ${img.alt}`, true);
+        }
+
+        function selectDress(element) {
+            if (!element.complete || element.naturalHeight === 0) {
+                console.error('Image not properly loaded:', element.src);
+                updateStatus("Error: Image not properly loaded", true);
+                return;
+            }
+
+            // Remove selected class from all dress options
+            document.querySelectorAll('.dress-option').forEach(dress => {
+                dress.classList.remove('selected');
+            });
+            
+            // Add selected class to clicked dress
+            element.classList.add('selected');
+            
+            // Set the overlay image
+            overlayImage.src = element.src;
+            overlayImage.style.display = 'block';
+            selectedImage = overlayImage;
+
+            // Wait for the overlay image to load
+            overlayImage.onload = function() {
+                console.log('Overlay image loaded successfully:', {
+                    width: overlayImage.naturalWidth,
+                    height: overlayImage.naturalHeight
+                });
+                updateStatus("Dress selected successfully");
+            };
+
+            overlayImage.onerror = function() {
+                console.error('Error loading overlay image');
+                updateStatus("Error loading selected dress", true);
+                overlayImage.style.display = 'none';
+            };
+            
+            console.log('Dress selected:', element.src);
+        }
 
         function updateStatus(message, isError = false) {
             statusMessage.textContent = message;
@@ -280,7 +358,6 @@
                     }, function() {
                         console.log('PoseNet model loaded successfully');
                         updateStatus("Pose detection ready");
-                        document.getElementById('selectImageBtn').disabled = false;
                         document.getElementById('startCameraBtn').disabled = true;
                         isTracking = true;
                         console.log('Starting overlay tracking...');
@@ -322,29 +399,6 @@
                 } else {
                     updateStatus("Error accessing camera: " + err.message, true);
                 }
-            }
-        }
-
-        function handleImageSelect(event) {
-            console.log('Image selection started...');
-            const file = event.target.files[0];
-            if (file) {
-                console.log('File selected:', file.name);
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    console.log('Image loaded, setting up overlay...');
-                    overlayImage.src = e.target.result;
-                    overlayImage.style.display = 'block';
-                    selectedImage = overlayImage;
-                    console.log('Overlay image properties:', {
-                        src: overlayImage.src,
-                        display: overlayImage.style.display,
-                        width: overlayImage.width,
-                        height: overlayImage.height
-                    });
-                    updateStatus("Image loaded successfully");
-                };
-                reader.readAsDataURL(file);
             }
         }
 
