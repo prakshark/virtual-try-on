@@ -4,58 +4,93 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Virtual Try-On</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
     <script src="https://unpkg.com/ml5@0.12.2/dist/ml5.min.js"></script>
     <style>
+        :root {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --text-primary: #ffffff;
+            --text-secondary: #b3b3b3;
+            --accent-color: #4CAF50;
+            --accent-hover: #45a049;
+            --error-bg: #3d1c1c;
+            --error-text: #ff6b6b;
+            --success-bg: #1c3d1c;
+            --success-text: #4CAF50;
+        }
+
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Ubuntu', sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
             padding: 20px;
-            background-color: #f0f0f0;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
         }
+
+        h1 {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
         .main-container {
             display: flex;
             gap: 20px;
             align-items: flex-start;
+            width: 100%;
+            max-width: 1200px;
         }
+
         .container {
             position: relative;
             width: 640px;
             height: 480px;
             margin: 20px 0;
-            background-color: #ddd;
+            background-color: var(--bg-secondary);
             border-radius: 8px;
             display: flex;
             justify-content: center;
             align-items: center;
             overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
         }
+
         .dress-options {
             display: flex;
             flex-direction: column;
             gap: 15px;
             padding: 15px;
-            background-color: #fff;
+            background-color: var(--bg-secondary);
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
         }
+
         .dress-option {
             width: 150px;
             height: 150px;
             border: 3px solid transparent;
             border-radius: 4px;
             cursor: pointer;
-            transition: border-color 0.3s ease;
+            transition: all 0.3s ease;
             object-fit: cover;
+            background-color: var(--bg-primary);
         }
+
         .dress-option:hover {
-            border-color: #4CAF50;
+            border-color: var(--accent-color);
+            transform: scale(1.02);
         }
+
         .dress-option.selected {
-            border-color: #2196F3;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 10px rgba(76, 175, 80, 0.3);
         }
+
         #videoElement {
             width: 100%;
             height: 100%;
@@ -66,6 +101,7 @@
             left: 0;
             z-index: 1;
         }
+
         #overlayImage {
             position: absolute;
             top: 0;
@@ -75,8 +111,8 @@
             object-fit: contain;
             pointer-events: none;
             z-index: 2;
-            transform-origin: center center;
         }
+
         #poseCanvas {
             position: absolute;
             top: 0;
@@ -86,48 +122,112 @@
             z-index: 3;
             pointer-events: none;
         }
+
         .controls {
             display: flex;
             gap: 10px;
             margin: 20px 0;
             z-index: 4;
         }
+
         button {
             padding: 10px 20px;
             font-size: 16px;
+            font-family: 'Ubuntu', sans-serif;
             cursor: pointer;
-            background-color: #4CAF50;
-            color: white;
+            background-color: var(--accent-color);
+            color: var(--text-primary);
             border: none;
             border-radius: 4px;
+            transition: all 0.3s ease;
         }
+
         button:hover {
-            background-color: #45a049;
+            background-color: var(--accent-hover);
+            transform: translateY(-1px);
         }
+
         button:disabled {
-            background-color: #cccccc;
+            background-color: var(--bg-secondary);
+            color: var(--text-secondary);
             cursor: not-allowed;
+            transform: none;
         }
+
         #imageInput {
             display: none;
         }
+
         #statusMessage {
             margin: 10px 0;
             padding: 10px 20px;
             border-radius: 4px;
-            background-color: #f8f9fa;
-            color: #333;
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
             font-size: 16px;
             text-align: center;
             min-width: 300px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
         }
+
         .error {
-            background-color: #ffebee;
-            color: #c62828;
+            background-color: var(--error-bg);
+            color: var(--error-text);
         }
+
         .success {
-            background-color: #e8f5e9;
-            color: #2e7d32;
+            background-color: var(--success-bg);
+            color: var(--success-text);
+        }
+
+        /* Mobile Styles */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .main-container {
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+            }
+            
+            .container {
+                width: 100%;
+                height: 0;
+                padding-bottom: 75%;
+                margin: 10px 0;
+            }
+            
+            .dress-options {
+                flex-direction: row;
+                width: 100%;
+                overflow-x: auto;
+                padding: 10px;
+                gap: 10px;
+                justify-content: center;
+                order: -1;
+            }
+            
+            .dress-option {
+                width: 100px;
+                height: 100px;
+                flex-shrink: 0;
+            }
+
+            #statusMessage {
+                font-size: 14px;
+                padding: 8px 15px;
+            }
+
+            .controls {
+                margin: 10px 0;
+            }
+
+            button {
+                padding: 8px 15px;
+                font-size: 14px;
+            }
         }
     </style>
 </head>
