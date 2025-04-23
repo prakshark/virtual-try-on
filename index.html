@@ -36,6 +36,14 @@
             color: #fff;
             text-shadow: 0 0 10px #00ff00;
             margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .loading-text img {
+            width: 200px;
+            height: auto;
+            margin-bottom: 20px;
         }
         .fashion-fact {
             font-size: 1.2em;
@@ -62,16 +70,38 @@
         }
         .main-container {
             display: flex;
+            flex-direction: column;
+            align-items: center;
             gap: 20px;
-            align-items: flex-start;
             opacity: 0;
             transition: opacity 0.5s ease;
+            width: 100%;
+        }
+        .logo-container {
+            display: flex;
+            justify-content: center;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        .content-wrapper {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: flex-start;
+            gap: 20px;
+            width: 100%;
+            max-width: 1200px;
+        }
+        .camera-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
         }
         .container {
             position: relative;
             width: 640px;
             height: 480px;
-            margin: 20px 0;
             background-color: #111;
             border-radius: 8px;
             display: flex;
@@ -86,9 +116,10 @@
             flex-direction: column;
             gap: 15px;
             padding: 15px;
-            background-color: #fff;
+            background-color: #111;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border: 2px solid #333;
         }
         .dress-option {
             width: 150px;
@@ -166,50 +197,45 @@
         #imageInput {
             display: none;
         }
-        #statusMessage {
-            margin: 10px 0;
-            padding: 10px 20px;
-            border-radius: 4px;
-            background-color: #f8f9fa;
-            color: #333;
-            font-size: 16px;
-            text-align: center;
-            min-width: 300px;
-        }
-        .error {
-            background-color: #ffebee;
-            color: #c62828;
-        }
-        .success {
-            background-color: #e8f5e9;
-            color: #2e7d32;
+        .logo {
+            width: 300px;
+            height: auto;
+            margin-bottom: 20px;
         }
     </style>
 </head>
 <body>
     <div class="loading-screen" id="loadingScreen">
-        <div class="loading-text">AI Models Loading</div>
+        <div class="loading-text">
+            <img src="./cblogo.png" alt="CB Logo" class="logo">
+            <div>AI Models Loading</div>
+        </div>
         <div class="fashion-fact" id="fashionFact"></div>
         <div class="loading-bar">
             <div class="loading-progress" id="loadingProgress"></div>
         </div>
     </div>
-    <h1>Virtual Try-On</h1>
-    <div id="statusMessage">Click "Start Camera" to begin</div>
     <div class="main-container">
-        <div class="container">
-            <video id="videoElement" autoplay playsinline></video>
-            <img id="overlayImage" src="" alt="Overlay" style="display: none;">
-            <canvas id="poseCanvas"></canvas>
+        <div class="logo-container">
+            <img src="./cblogo.png" alt="CB Logo" class="logo">
         </div>
-        <div class="dress-options">
-            <img src="./IMG1.png" alt="Dress 1" class="dress-option" onclick="selectDress(this)" onerror="handleImageError(this)">
-            <img src="./IMG2.png" alt="Dress 2" class="dress-option" onclick="selectDress(this)" onerror="handleImageError(this)">
-            <img src="./IMG3.png" alt="Dress 3" class="dress-option" onclick="selectDress(this)" onerror="handleImageError(this)">
+        <div class="content-wrapper">
+            <div class="camera-section">
+                <div class="container">
+                    <video id="videoElement" autoplay playsinline></video>
+                    <img id="overlayImage" src="" alt="Overlay" style="display: none;">
+                    <canvas id="poseCanvas"></canvas>
+                </div>
+                <div class="controls">
+                    <button id="startCameraBtn" onclick="startCamera()">Start Camera</button>
+                </div>
+            </div>
+            <div class="dress-options">
+                <img src="./IMG1.png" alt="Dress 1" class="dress-option" onclick="selectDress(this)" onerror="handleImageError(this)">
+                <img src="./IMG2.png" alt="Dress 2" class="dress-option" onclick="selectDress(this)" onerror="handleImageError(this)">
+                <img src="./IMG3.png" alt="Dress 3" class="dress-option" onclick="selectDress(this)" onerror="handleImageError(this)">
+            </div>
         </div>
-    </div>
-    <div class="controls">
-        <button id="startCameraBtn" onclick="startCamera()">Start Camera</button>
     </div>
 
     <script>
@@ -270,7 +296,6 @@
         let overlayImage = document.getElementById('overlayImage');
         let poseCanvas = document.getElementById('poseCanvas');
         let poseCtx = poseCanvas.getContext('2d');
-        let statusMessage = document.getElementById('statusMessage');
         let stream = null;
         let poseNet = null;
         let poses = [];
@@ -280,13 +305,11 @@
         function handleImageError(img) {
             console.error('Error loading image:', img.src);
             img.style.display = 'none';
-            updateStatus(`Error loading image: ${img.alt}`, true);
         }
 
         function selectDress(element) {
             if (!element.complete || element.naturalHeight === 0) {
                 console.error('Image not properly loaded:', element.src);
-                updateStatus("Error: Image not properly loaded", true);
                 return;
             }
 
@@ -305,26 +328,15 @@
 
             // Wait for the overlay image to load
             overlayImage.onload = function() {
-                console.log('Overlay image loaded successfully:', {
-                    width: overlayImage.naturalWidth,
-                    height: overlayImage.naturalHeight
-                });
-                updateStatus("Dress selected successfully");
+                console.log('Overlay image loaded successfully');
             };
 
             overlayImage.onerror = function() {
                 console.error('Error loading overlay image');
-                updateStatus("Error loading selected dress", true);
                 overlayImage.style.display = 'none';
             };
             
             console.log('Dress selected:', element.src);
-        }
-
-        function updateStatus(message, isError = false) {
-            statusMessage.textContent = message;
-            statusMessage.className = isError ? 'error' : 'success';
-            console.log('Status Update:', message);
         }
 
         function drawKeypoints() {
@@ -396,6 +408,20 @@
         }
 
         async function startCamera() {
+            const startCameraBtn = document.getElementById('startCameraBtn');
+            
+            if (startCameraBtn.textContent === 'Stop Camera') {
+                // Stop camera
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+                videoElement.srcObject = null;
+                overlayImage.style.display = 'none';
+                isTracking = false;
+                startCameraBtn.textContent = 'Start Camera';
+                return;
+            }
+
             console.log('Starting camera initialization...');
             try {
                 const devices = await navigator.mediaDevices.enumerateDevices();
@@ -403,7 +429,7 @@
                 const hasCamera = devices.some(device => device.kind === 'videoinput');
                 
                 if (!hasCamera) {
-                    updateStatus("No camera found on your device", true);
+                    console.error("No camera found on your device");
                     return;
                 }
 
@@ -443,7 +469,7 @@
                     height: poseCanvas.height
                 });
                 
-                updateStatus("Camera started successfully");
+                startCameraBtn.textContent = 'Stop Camera';
                 
                 try {
                     console.log('Initializing PoseNet...');
@@ -472,8 +498,6 @@
                         minConfidence: 0.5
                     }, function() {
                         console.log('PoseNet model loaded successfully');
-                        updateStatus("Pose detection ready");
-                        document.getElementById('startCameraBtn').disabled = true;
                         isTracking = true;
                         console.log('Starting overlay tracking...');
                         requestAnimationFrame(updateOverlay);
@@ -503,17 +527,9 @@
                     
                 } catch (poseError) {
                     console.error("Error initializing PoseNet:", poseError);
-                    updateStatus("Error initializing pose detection", true);
                 }
             } catch (err) {
                 console.error("Error accessing camera:", err);
-                if (err.name === 'NotAllowedError') {
-                    updateStatus("Please allow camera access in your browser settings", true);
-                } else if (err.name === 'NotFoundError') {
-                    updateStatus("No camera found on your device", true);
-                } else {
-                    updateStatus("Error accessing camera: " + err.message, true);
-                }
             }
         }
 
